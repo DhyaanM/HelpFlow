@@ -248,6 +248,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
       } else {
         // Student hasn't joined a lesson yet
         setLesson(null)
+        setIsLoading(false)
         return
       }
 
@@ -365,7 +366,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
       supabase.removeChannel(requestSub)
     }
 
-  }, [supabase])
+  }, [supabase, currentUser])
 
 
   // --- Actions ---

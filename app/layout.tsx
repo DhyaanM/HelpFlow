@@ -26,8 +26,8 @@ export default function RootLayout({
         <main className="flex-1">
           {children}
         </main>
-        <footer className="py-4 text-center text-sm text-muted-foreground/60">
-          Made By Dhyaan Manganahalli
+        <footer className="py-2 text-center text-[10px] text-muted-foreground/40 font-medium tracking-wide">
+          MADE BY DHYAAN MANGANAHALLI
         </footer>
       </body>
     </html>
