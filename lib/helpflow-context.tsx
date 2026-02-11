@@ -128,6 +128,33 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
               avatar: profile.avatar_url,
             })
             setScreen(profile.role === "teacher" ? "teacher" : "student")
+          } else {
+            // No profile found, let's create a default one to unblock the user
+            console.log("No profile found for logged-in user, creating default...")
+            const defaultName = user.email?.split("@")[0] || "User"
+            const { data: newProfile, error: insertError } = await supabase
+              .from("profiles")
+              .insert({
+                id: user.id,
+                full_name: defaultName,
+                role: "student",
+                avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${defaultName}`
+              })
+              .select()
+              .single()
+
+            if (!insertError && newProfile) {
+              setCurrentUser({
+                id: user.id,
+                name: newProfile.full_name,
+                role: newProfile.role as Role,
+                email: user.email,
+                avatar: newProfile.avatar_url,
+              })
+              setScreen("student")
+            } else {
+              console.error("Failed to create default profile:", insertError)
+            }
           }
         }
       } catch (error) {
@@ -157,6 +184,30 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
             avatar: profile.avatar_url,
           })
           setScreen(profile.role === "teacher" ? "teacher" : "student")
+        } else {
+          // Sign in event but no profile - create one
+          const defaultName = session.user.email?.split("@")[0] || "User"
+          const { data: newProfile } = await supabase
+            .from("profiles")
+            .insert({
+              id: session.user.id,
+              full_name: defaultName,
+              role: "student",
+              avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${defaultName}`
+            })
+            .select()
+            .single()
+
+          if (newProfile) {
+            setCurrentUser({
+              id: session.user.id,
+              name: newProfile.full_name,
+              role: newProfile.role as Role,
+              email: session.user.email,
+              avatar: newProfile.avatar_url,
+            })
+            setScreen("student")
+          }
         }
       } else if (event === "SIGNED_OUT") {
         setCurrentUser(null)
