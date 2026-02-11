@@ -22,7 +22,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="font-sans antialiased" suppressHydrationWarning>{children}</body>
+      <body className="font-sans antialiased min-h-screen flex flex-col" suppressHydrationWarning>
+        <main className="flex-1">
+          {children}
+        </main>
+        <footer className="py-4 text-center text-sm text-muted-foreground/60">
+          Made By Dhyaan Manganahalli
+        </footer>
+      </body>
     </html>
   )
 }

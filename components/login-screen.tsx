@@ -38,8 +38,8 @@ export function LoginScreen() {
     try {
       if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
+          email: email.trim(),
+          password: password.trim(),
         })
         if (error) throw error
       } else {
@@ -51,8 +51,8 @@ export function LoginScreen() {
         }
 
         const { error: signUpError, data } = await supabase.auth.signUp({
-          email,
-          password,
+          email: email.trim(),
+          password: password.trim(),
           options: {
             data: {
               full_name: name,
