@@ -80,6 +80,8 @@ export function LoginScreen() {
     } catch (e: any) {
       if (e.message?.includes("rate limit") || e.message?.includes("Email rate limit exceeded")) {
         setError("Too many attempts. Please wait a moment before trying again.")
+      } else if (e.message?.includes("Invalid login credentials")) {
+        setError("Invalid credentials. Please check your password or confirm your email.")
       } else {
         setError(e.message)
       }
