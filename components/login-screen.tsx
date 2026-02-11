@@ -10,7 +10,7 @@ const spring = { type: "spring" as const, stiffness: 300, damping: 24 }
 
 export function LoginScreen() {
   const supabase = createClient()
-  const [mode, setMode] = useState<"login" | "signup" | "forgot-password">("login")
+  const [mode, setMode] = useState<"login" | "signup">("login")
   const [role, setRole] = useState<Role | null>(null)
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
@@ -99,23 +99,6 @@ export function LoginScreen() {
     }
   }
 
-  async function handleResetPassword() {
-    if (!supabase || !email) return
-    setIsLoading(true)
-    setError(null)
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
-      })
-      if (error) throw error
-      setError("Password reset email sent! Please check your inbox.")
-    } catch (e: any) {
-      console.error("Reset password error:", e)
-      setError(e.message)
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   const resetForm = () => {
     setError(null)
@@ -173,24 +156,22 @@ export function LoginScreen() {
           transition={spring}
         >
           {/* Header Switcher */}
-          {mode !== "forgot-password" && (
-            <div className="flex gap-4 mb-6 border-b border-border pb-4">
-              <button
-                onClick={() => { setMode("login"); resetForm(); }}
-                className={`flex-1 pb-2 text-sm font-semibold transition-colors relative ${mode === "login" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                Log In
-                {mode === "login" && <motion.div layoutId="tab" className="absolute bottom-[-17px] left-0 right-0 h-0.5 bg-[#2D9389]" />}
-              </button>
-              <button
-                onClick={() => { setMode("signup"); resetForm(); }}
-                className={`flex-1 pb-2 text-sm font-semibold transition-colors relative ${mode === "signup" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                Sign Up
-                {mode === "signup" && <motion.div layoutId="tab" className="absolute bottom-[-17px] left-0 right-0 h-0.5 bg-[#2D9389]" />}
-              </button>
-            </div>
-          )}
+          <div className="flex gap-4 mb-6 border-b border-border pb-4">
+            <button
+              onClick={() => { setMode("login"); resetForm(); }}
+              className={`flex-1 pb-2 text-sm font-semibold transition-colors relative ${mode === "login" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              Log In
+              {mode === "login" && <motion.div layoutId="tab" className="absolute bottom-[-17px] left-0 right-0 h-0.5 bg-[#2D9389]" />}
+            </button>
+            <button
+              onClick={() => { setMode("signup"); resetForm(); }}
+              className={`flex-1 pb-2 text-sm font-semibold transition-colors relative ${mode === "signup" ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              Sign Up
+              {mode === "signup" && <motion.div layoutId="tab" className="absolute bottom-[-17px] left-0 right-0 h-0.5 bg-[#2D9389]" />}
+            </button>
+          </div>
 
           <AnimatePresence mode="wait">
             {mode === "signup" && signupStep === "role" ? (
@@ -305,15 +286,6 @@ export function LoginScreen() {
                   </div>
                 </div>
 
-                {mode === "login" && (
-                  <button
-                    onClick={() => setMode("forgot-password")}
-                    className="text-xs text-[#2D9389] hover:underline text-right block w-full"
-                  >
-                    Forgot password?
-                  </button>
-                )}
-
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
@@ -325,63 +297,6 @@ export function LoginScreen() {
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
                     mode === "login" ? "Sign In" : "Create Account"
-                  )}
-                </motion.button>
-              </motion.div>
-            )}
-
-            {mode === "forgot-password" && (
-              <motion.div
-                key="forgot-password-form"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="space-y-4"
-              >
-                <button
-                  onClick={() => setMode("login")}
-                  className="text-sm text-muted-foreground hover:text-foreground mb-2 transition-colors flex items-center gap-1"
-                >
-                  <ArrowRight className="w-4 h-4 rotate-180" /> Back to login
-                </button>
-
-                <h2 className="text-xl font-semibold text-card-foreground">Reset Password</h2>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Enter your email address and we&apos;ll send you a link to reset your password.
-                </p>
-
-                {error && (
-                  <div className={`p-3 rounded-lg border text-sm flex items-center gap-2 ${error.includes("sent") ? "bg-green-500/10 border-green-500/20 text-green-600" : "bg-red-500/10 border-red-500/20 text-red-600"}`}>
-                    <AlertCircle className="w-4 h-4" />
-                    {error}
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-muted-foreground">Email</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3.5 w-5 h-5 text-muted-foreground" />
-                    <input
-                      type="email"
-                      placeholder="name@school.edu"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 rounded-xl border-2 border-border bg-background focus:border-[#2D9389] focus:ring-0 outline-none transition-all"
-                    />
-                  </div>
-                </div>
-
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleResetPassword}
-                  disabled={isLoading || !email}
-                  className="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-[#2D9389] to-[#115D7F] text-white font-semibold flex items-center justify-center gap-2 shadow-lg shadow-[#2D9389]/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    "Send Reset Link"
                   )}
                 </motion.button>
               </motion.div>
