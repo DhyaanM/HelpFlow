@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useHelpFlow } from "@/lib/helpflow-context"
 import {
@@ -12,7 +13,7 @@ import {
 } from "lucide-react"
 import { CooldownTimer } from "./cooldown-timer"
 
-const spring = { type: "spring", stiffness: 300, damping: 24 }
+const spring = { type: "spring" as const, stiffness: 300, damping: 24 }
 
 export function StudentDashboard() {
   const {
@@ -20,12 +21,17 @@ export function StudentDashboard() {
     setCurrentUser,
     setScreen,
     lesson,
+    joinLesson,
     requestHelp,
     getQueuePosition,
     getStudentRequestCount,
     cooldownRemaining,
     activeQueue,
   } = useHelpFlow()
+
+  const [joinCode, setJoinCode] = useState("")
+  const [isJoining, setIsJoining] = useState(false)
+  const [joinError, setJoinError] = useState<string | null>(null)
 
   const position = getQueuePosition()
   const requestCount = getStudentRequestCount()
@@ -35,13 +41,25 @@ export function StudentDashboard() {
 
   const estimatedWait = isInQueue ? position * 3 : 0
 
+  const handleJoin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!joinCode) return
+    setIsJoining(true)
+    setJoinError(null)
+    const result = await joinLesson(joinCode)
+    if (!result.success) {
+      setJoinError(result.error || "Failed to join")
+    }
+    setIsJoining(false)
+  }
+
   function handleLogout() {
     setCurrentUser(null)
     setScreen("login")
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-background to-[#2D9389]/5">
+    <div className="bg-gradient-to-b from-background via-background to-[#2D9389]/5">
       {/* Header */}
       <motion.header
         initial={{ opacity: 0, y: -20 }}
@@ -80,23 +98,50 @@ export function StudentDashboard() {
         <AnimatePresence mode="wait">
           {!lesson?.active ? (
             <motion.div
-              key="no-lesson"
+              key="join-lesson"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={spring}
-              className="text-center py-20"
+              className="max-w-sm mx-auto pt-12 text-center"
             >
-              <div className="w-20 h-20 rounded-2xl bg-muted mx-auto mb-6 flex items-center justify-center">
-                <Clock className="w-10 h-10 text-muted-foreground" />
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#2D9389]/10 to-[#115D7F]/10 mx-auto mb-6 flex items-center justify-center">
+                <Users className="w-10 h-10 text-[#2D9389]" />
               </div>
               <h2 className="text-2xl font-bold text-foreground mb-2">
-                No Active Lesson
+                Join a Lesson
               </h2>
-              <p className="text-muted-foreground leading-relaxed max-w-sm mx-auto">
-                Waiting for your teacher to start a lesson. The help queue will
-                be available once the lesson begins.
+              <p className="text-muted-foreground mb-8 text-sm">
+                Enter the 6-character code from your teacher to join the help queue.
               </p>
+
+              <form onSubmit={handleJoin} className="space-y-4">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                    placeholder="ENTER CODE (e.g. B4X7K2)"
+                    maxLength={10}
+                    className="w-full px-4 py-4 rounded-xl bg-card border border-border text-center text-xl font-black font-mono tracking-widest focus:ring-2 focus:ring-[#2D9389] focus:outline-none transition-all"
+                  />
+                  {joinError && (
+                    <p className="text-destructive text-xs mt-2 font-medium">{joinError}</p>
+                  )}
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  disabled={joinCode.length < 4 || isJoining}
+                  className="w-full py-4 rounded-xl bg-gradient-to-r from-[#2D9389] to-[#115D7F] text-white font-bold shadow-lg shadow-[#2D9389]/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                >
+                  {isJoining ? (
+                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    "Join Classroom"
+                  )}
+                </motion.button>
+              </form>
             </motion.div>
           ) : (
             <motion.div

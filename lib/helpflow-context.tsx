@@ -40,6 +40,7 @@ interface DBHelpRequest {
 export interface Lesson {
   id: string
   active: boolean
+  code: string
   startedAt: number
   endedAt?: number
   requests: HelpRequest[]
@@ -65,6 +66,7 @@ interface HelpFlowContextType {
   lesson: Lesson | null
   startLesson: () => Promise<void>
   endLesson: () => Promise<void>
+  joinLesson: (code: string) => Promise<{ success: boolean; error?: string }>
   requestHelp: () => Promise<void>
   completeRequest: (requestId: string) => Promise<void>
   getQueuePosition: () => number
@@ -76,7 +78,6 @@ interface HelpFlowContextType {
   generateReport: () => LessonReport | null
   studentRoster: User[] // Kept for compatibility, though less relevant with real auth
   pastReports: LessonReport[]
-  simulateStudentRequests: () => void // Kept for demo mode
   isLoading: boolean
 }
 
@@ -226,42 +227,67 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
     if (!supabase) return
 
     // Fetch active lesson
-    const fetchActiveLesson = async () => {
-      const { data: lessons } = await supabase
+    const fetchActiveLesson = async (lessonCode?: string) => {
+      if (!supabase) return
+
+      // If we are a teacher, we care about OUR active lesson
+      // If we are a student, we care about the lesson with the CODE we joined
+
+      let query = supabase
         .from("lessons")
-        .select("*")
+        .select(`
+          *,
+          help_requests (*)
+        `)
         .eq("status", "active")
-        .order("started_at", { ascending: false })
-        .limit(1)
 
-      if (lessons && lessons.length > 0) {
-        const activeLesson = lessons[0]
-        // Fetch requests for this lesson
-        const { data: requests } = await supabase
-          .from("help_requests")
-          .select("*, profiles(full_name)")
-          .eq("lesson_id", activeLesson.id)
-          .order("created_at", { ascending: true })
+      if (currentUser?.role === "teacher") {
+        query = query.eq("teacher_id", currentUser.id)
+      } else if (lessonCode) {
+        query = query.eq("code", lessonCode.toUpperCase())
+      } else {
+        // Student hasn't joined a lesson yet
+        setLesson(null)
+        return
+      }
 
-        const formattedRequests: HelpRequest[] = (requests || []).map((r: any) => ({
+      const { data: lessonData, error } = await query.maybeSingle()
+
+      if (error) {
+        console.error("Error fetching active lesson:", error)
+        return
+      }
+
+      if (lessonData) {
+        // Fetch student names for requests
+        const studentIds = (lessonData.help_requests || []).map((r: any) => r.student_id)
+        const studentNamesQuery = await supabase.from("profiles").select("id, full_name").in("id", studentIds)
+        const profileMap = Object.fromEntries((studentNamesQuery.data || []).map(p => [p.id, p.full_name]))
+
+        const formattedRequests: HelpRequest[] = (lessonData.help_requests || []).map((r: any) => ({
           id: r.id,
           studentId: r.student_id,
-          studentName: r.profiles?.full_name || "Unknown",
+          studentName: profileMap[r.student_id] || "Unknown",
           timestamp: new Date(r.created_at).getTime(),
           status: r.status,
           completedAt: r.completed_at ? new Date(r.completed_at).getTime() : undefined
         }))
 
         setLesson({
-          id: activeLesson.id,
+          id: lessonData.id,
           active: true,
-          startedAt: new Date(activeLesson.started_at).getTime(),
+          code: lessonData.code,
+          startedAt: new Date(lessonData.started_at).getTime(),
           requests: formattedRequests
         })
+      } else {
+        setLesson(null)
       }
     }
 
-    fetchActiveLesson()
+    // Try to restore joined lesson from localStorage if student
+    const savedCode = typeof window !== 'undefined' ? localStorage.getItem('joinedLessonCode') : null
+    fetchActiveLesson(savedCode || undefined)
 
     // Subscribe to lessons
     const lessonSub = supabase
@@ -271,13 +297,20 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
         { event: "*", schema: "public", table: "lessons" },
         (payload) => {
           if (payload.eventType === "INSERT" && payload.new.status === "active") {
-            setLesson({
-              id: payload.new.id,
-              active: true,
-              startedAt: new Date(payload.new.started_at).getTime(),
-              requests: []
-            })
-            // Reset screen if needed?
+            // Only care if it matches OUR joined code (for student) or OUR ID (for teacher)
+            const isOurLesson = currentUser?.role === "teacher"
+              ? payload.new.teacher_id === currentUser.id
+              : payload.new.code === (typeof window !== 'undefined' ? localStorage.getItem('joinedLessonCode') : null)
+
+            if (isOurLesson) {
+              setLesson({
+                id: payload.new.id,
+                active: true,
+                code: payload.new.code,
+                startedAt: new Date(payload.new.started_at).getTime(),
+                requests: []
+              })
+            }
           } else if (payload.eventType === "UPDATE" && payload.new.status === "completed") {
             setLesson(prev => prev && prev.id === payload.new.id ? { ...prev, active: false, endedAt: new Date().getTime() } : prev)
           }
@@ -343,6 +376,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
       setLesson({
         id: `lesson-${Date.now()}`,
         active: true,
+        code: "DEMO12",
         startedAt: Date.now(),
         requests: [],
       })
@@ -351,16 +385,76 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
 
     if (!currentUser) return
 
+    // Generate random 6 character code
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase()
+
     try {
-      await supabase.from("lessons").insert({
+      const { data, error } = await supabase.from("lessons").insert({
         teacher_id: currentUser.id,
         status: "active",
+        code: code,
         started_at: new Date().toISOString()
-      })
+      }).select().single()
+
+      if (error) throw error
+
+      if (data) {
+        setLesson({
+          id: data.id,
+          active: true,
+          code: data.code,
+          startedAt: new Date(data.started_at).getTime(),
+          requests: []
+        })
+      }
     } catch (e) {
       console.error("Error starting lesson:", e)
     }
   }, [supabase, currentUser])
+
+  const joinLesson = useCallback(async (code: string) => {
+    if (!supabase) return { success: false, error: "Supabase not initialized" }
+
+    const { data, error } = await supabase
+      .from("lessons")
+      .select(`
+        *,
+        help_requests (*)
+      `)
+      .eq("code", code.toUpperCase())
+      .eq("status", "active")
+      .maybeSingle()
+
+    if (error) return { success: false, error: error.message }
+    if (!data) return { success: false, error: "Lesson not found or already ended" }
+
+    // Store in localStorage
+    localStorage.setItem('joinedLessonCode', code.toUpperCase())
+
+    // Format requests
+    const studentIds = (data.help_requests || []).map((r: any) => r.student_id)
+    const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", studentIds)
+    const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p.full_name]))
+
+    const formattedRequests: HelpRequest[] = (data.help_requests || []).map((r: any) => ({
+      id: r.id,
+      studentId: r.student_id,
+      studentName: profileMap[r.student_id] || "Unknown",
+      timestamp: new Date(r.created_at).getTime(),
+      status: r.status,
+      completedAt: r.completed_at ? new Date(r.completed_at).getTime() : undefined
+    }))
+
+    setLesson({
+      id: data.id,
+      active: true,
+      code: data.code,
+      startedAt: new Date(data.started_at).getTime(),
+      requests: formattedRequests
+    })
+
+    return { success: true }
+  }, [supabase])
 
   const endLesson = useCallback(async () => {
     if (!supabase) {
@@ -555,6 +649,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
         lesson,
         startLesson,
         endLesson,
+        joinLesson,
         requestHelp,
         completeRequest,
         getQueuePosition,
@@ -566,7 +661,6 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
         generateReport,
         studentRoster: [], // Deprecated in favor of DB
         pastReports,
-        simulateStudentRequests: () => { }, // Deprecated
         isLoading
       }}
     >
