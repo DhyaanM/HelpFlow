@@ -153,25 +153,41 @@ export function TeacherDashboard() {
         className="sticky top-0 z-20 bg-card/80 backdrop-blur-xl border-b border-border"
       >
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#F9B940] to-[#AD4225] flex items-center justify-center">
-              <span className="text-white text-sm font-bold">
-                {currentUser?.name?.charAt(0) || "T"}
-              </span>
+          {/* Brand (Left) */}
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#2D9389] to-[#115D7F] flex items-center justify-center shadow-sm">
+              <span className="text-white font-bold text-xs">HF</span>
             </div>
-            <div>
-              <p className="font-semibold text-sm text-card-foreground">
-                {currentUser?.name}
-              </p>
-              <p className="text-xs text-muted-foreground">Teacher</p>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-foreground tracking-tight">HelpFlow</span>
+                <span className="bg-amber-500/15 text-amber-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider border border-amber-500/20">
+                  Beta
+                </span>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          {/* Controls & Profile (Right) */}
+          <div className="flex items-center gap-4">
+            {/* Profile Pill */}
+            <div className="flex items-center gap-3 pl-4 border-l border-border/50">
+              <div className="text-right hidden sm:block">
+                <p className="font-medium text-sm text-foreground">
+                  {currentUser?.name}
+                </p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Teacher</p>
+              </div>
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#F9B940] to-[#AD4225] flex items-center justify-center shadow-sm text-white text-sm font-bold">
+                {currentUser?.name?.charAt(0) || "T"}
+              </div>
+            </div>
+
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={handleLogout}
-              className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="p-2 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors"
               aria-label="Log out"
             >
               <LogOut className="w-5 h-5" />
