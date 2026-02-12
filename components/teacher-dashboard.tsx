@@ -307,8 +307,7 @@ export function TeacherDashboard() {
                     Queue is empty
                   </h3>
                   <p className="text-muted-foreground text-sm leading-relaxed">
-                    No students are waiting for help. Use the lightning bolt to
-                    simulate requests.
+                    No students are waiting for help right now.
                   </p>
                 </motion.div>
               ) : (

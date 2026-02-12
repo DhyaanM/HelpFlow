@@ -35,6 +35,15 @@ export function LoginScreen() {
     setIsLoading(true)
     setError(null)
 
+    // Safety timeout - if auth takes more than 10s, reset loading state
+    const timeoutId = setTimeout(() => {
+      if (isSubmittingRef.current) {
+        setIsLoading(false)
+        isSubmittingRef.current = false
+        setError("Authentication timeout. Please try again.")
+      }
+    }, 10000)
+
     try {
       if (mode === "login") {
         const { error, data } = await supabase.auth.signInWithPassword({
@@ -46,11 +55,14 @@ export function LoginScreen() {
           throw error
         }
         console.log("Login successful:", data.user?.id)
+        // Don't reset loading here - onAuthStateChange will handle navigation
+        // and component will unmount
       } else {
         if (!role || !name) {
           setError("Please fill in all fields")
           setIsLoading(false)
-          isSubmittingRef.current = false // Reset here too
+          isSubmittingRef.current = false
+          clearTimeout(timeoutId)
           return
         }
 
@@ -84,8 +96,11 @@ export function LoginScreen() {
             console.warn("Profile creation warn:", profileError)
           }
         }
+        // Don't reset loading here - onAuthStateChange will handle navigation
       }
+      clearTimeout(timeoutId)
     } catch (e: any) {
+      clearTimeout(timeoutId)
       if (e.message?.includes("rate limit") || e.message?.includes("Email rate limit exceeded")) {
         setError("Too many attempts. Please wait a moment before trying again.")
       } else if (e.message?.includes("Invalid login credentials")) {
@@ -93,11 +108,11 @@ export function LoginScreen() {
       } else {
         setError(e.message)
       }
-    } finally {
       setIsLoading(false)
-      isSubmittingRef.current = false // Always reset
+      isSubmittingRef.current = false
     }
   }
+
 
 
   const resetForm = () => {

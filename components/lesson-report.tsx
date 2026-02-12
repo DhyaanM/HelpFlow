@@ -21,8 +21,10 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts"
+import jsPDF from "jspdf"
+import autoTable from "jspdf-autotable"
 
-const spring = { type: "spring", stiffness: 300, damping: 24 }
+const spring = { type: "spring", stiffness: 300, damping: 24 } as const
 
 const CHART_COLORS = ["#2D9389", "#115D7F", "#AD4225", "#F9B940", "#3AAFA9"]
 
@@ -73,19 +75,85 @@ export function LessonReport() {
     setScreen("teacher")
   }
 
-  function handleExportCSV() {
-    const headers = ["Student", "Requests"]
-    const rows = Object.entries(lessonReport.requestsByStudent).map(
-      ([name, count]) => `${name},${count}`
-    )
-    const csv = [headers.join(","), ...rows].join("\n")
-    const blob = new Blob([csv], { type: "text/csv" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `helpflow-report-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+
+  function handleExportPDF() {
+    if (!lessonReport) return
+
+    const doc = new jsPDF()
+
+    // Title
+    doc.setFontSize(20)
+    doc.setTextColor(45, 147, 137) // #2D9389
+    doc.text("HelpFlow Lesson Report", 14, 22)
+
+    // Subtitle / Date
+    doc.setFontSize(11)
+    doc.setTextColor(100)
+    doc.text(`Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, 14, 30)
+
+    // Summary Stats
+    doc.setFillColor(245, 247, 250)
+    doc.roundedRect(14, 38, 182, 28, 3, 3, "F")
+
+    doc.setFontSize(10)
+    doc.setTextColor(80)
+    doc.text("Total Requests", 20, 48)
+    doc.text("Avg Wait Time", 70, 48)
+    doc.text("Students Engaged", 120, 48)
+    doc.text("Not Engaged", 170, 48)
+
+    doc.setFontSize(14)
+    doc.setTextColor(40)
+    doc.setFont("helvetica", "bold")
+    doc.text(lessonReport.totalRequests.toString(), 20, 56)
+    doc.text(avgWaitFormatted, 70, 56)
+    doc.text(lessonReport.studentsHelped.length.toString(), 120, 56)
+    doc.text(lessonReport.studentsNotEngaged.length.toString(), 170, 56)
+
+    // Request Table
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(14)
+    doc.setTextColor(45, 147, 137)
+    doc.text("Student Request Details", 14, 80)
+
+    const tableData = Object.entries(lessonReport.requestsByStudent).map(([name, count]) => [name, count])
+
+    autoTable(doc, {
+      startY: 85,
+      head: [["Student Name", "Help Requests"]],
+      body: tableData,
+      theme: "striped",
+      headStyles: { fillColor: [45, 147, 137] },
+      styles: { fontSize: 10, cellPadding: 4 },
+    })
+
+    // Engagement Lists
+    const finalY = (doc as any).lastAutoTable.finalY + 15
+
+    doc.setFontSize(14)
+    doc.setTextColor(45, 147, 137)
+    doc.text("Engagement Summary", 14, finalY)
+
+    doc.setFontSize(10)
+    doc.setTextColor(0)
+    doc.text("Engaged Students:", 14, finalY + 10)
+    doc.setFont("helvetica", "normal")
+    doc.setTextColor(80)
+    const engagedText = lessonReport.studentsHelped.length > 0 ? lessonReport.studentsHelped.join(", ") : "None"
+    const engagedLines = doc.splitTextToSize(engagedText, 180)
+    doc.text(engagedLines, 14, finalY + 16)
+
+    const notEngagedY = finalY + 16 + (engagedLines.length * 5) + 5
+    doc.setFont("helvetica", "bold")
+    doc.setTextColor(0)
+    doc.text("Not Engaged:", 14, notEngagedY)
+    doc.setFont("helvetica", "normal")
+    doc.setTextColor(80)
+    const notEngagedText = lessonReport.studentsNotEngaged.length > 0 ? lessonReport.studentsNotEngaged.join(", ") : "None"
+    const notEngagedLines = doc.splitTextToSize(notEngagedText, 180)
+    doc.text(notEngagedLines, 14, notEngagedY + 6)
+
+    doc.save(`helpflow-report-${new Date().toISOString().slice(0, 10)}.pdf`)
   }
 
   return (
@@ -115,11 +183,11 @@ export function LessonReport() {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={handleExportCSV}
+            onClick={handleExportPDF}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted text-foreground text-sm font-medium hover:bg-muted/80 transition-colors"
           >
             <Download className="w-4 h-4" />
-            Export CSV
+            Export PDF
           </motion.button>
         </div>
       </motion.header>

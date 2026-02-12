@@ -5,6 +5,8 @@ import { redirect } from "next/navigation"
 
 export async function signUp(formData: FormData) {
   const supabase = await createClient()
+  if (!supabase) return redirect("/auth/sign-up?error=Database%20connection%20failed")
+
   const email = formData.get("email") as string
   const password = formData.get("password") as string
   const displayName = formData.get("displayName") as string
@@ -33,6 +35,8 @@ export async function signUp(formData: FormData) {
 
 export async function signIn(formData: FormData) {
   const supabase = await createClient()
+  if (!supabase) return redirect("/auth/login?error=Database%20connection%20failed")
+
   const email = formData.get("email") as string
   const password = formData.get("password") as string
 
@@ -50,6 +54,8 @@ export async function signIn(formData: FormData) {
 
 export async function signOut() {
   const supabase = await createClient()
+  if (!supabase) return redirect("/auth/login")
+
   await supabase.auth.signOut()
   return redirect("/auth/login")
 }

@@ -7,7 +7,7 @@ import { TeacherDashboard } from "@/components/teacher-dashboard"
 import { LessonReport } from "@/components/lesson-report"
 import { AnimatePresence, motion } from "framer-motion"
 
-const spring = { type: "spring", stiffness: 200, damping: 22 }
+const spring = { type: "spring", stiffness: 200, damping: 22 } as const
 
 function AppRouter() {
   const { screen } = useHelpFlow()

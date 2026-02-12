@@ -27,6 +27,7 @@ export function StudentDashboard() {
     getStudentRequestCount,
     cooldownRemaining,
     activeQueue,
+    cancelRequest,
   } = useHelpFlow()
 
   const [joinCode, setJoinCode] = useState("")
@@ -201,12 +202,24 @@ export function StudentDashboard() {
                       <p className="text-muted-foreground mb-4 leading-relaxed">
                         Estimated wait: ~{estimatedWait} min
                       </p>
-                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#F9B940]/10 border border-[#F9B940]/20">
-                        <Users className="w-4 h-4 text-[#F9B940]" />
-                        <span className="text-sm font-medium text-[#F9B940]">
-                          {activeQueue.length} student
-                          {activeQueue.length !== 1 ? "s" : ""} waiting
-                        </span>
+                      <div className="flex flex-col gap-3">
+                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#F9B940]/10 border border-[#F9B940]/20 mx-auto">
+                          <Users className="w-4 h-4 text-[#F9B940]" />
+                          <span className="text-sm font-medium text-[#F9B940]">
+                            {activeQueue.length} student
+                            {activeQueue.length !== 1 ? "s" : ""} waiting
+                          </span>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            const myReq = activeQueue.find(r => r.studentId === currentUser?.id)
+                            if (myReq) cancelRequest(myReq.id)
+                          }}
+                          className="text-xs text-muted-foreground hover:text-red-500 transition-colors underline decoration-dotted underline-offset-4"
+                        >
+                          Cancel my request
+                        </button>
                       </div>
                     </motion.div>
                   ) : isOnCooldown ? (

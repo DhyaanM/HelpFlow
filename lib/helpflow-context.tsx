@@ -69,6 +69,7 @@ interface HelpFlowContextType {
   joinLesson: (code: string) => Promise<{ success: boolean; error?: string }>
   requestHelp: () => Promise<void>
   completeRequest: (requestId: string) => Promise<void>
+  cancelRequest: (requestId: string) => Promise<void>
   getQueuePosition: () => number
   getStudentRequestCount: (studentId?: string) => number
   cooldownRemaining: number
@@ -297,6 +298,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
         "postgres_changes",
         { event: "*", schema: "public", table: "lessons" },
         (payload) => {
+          console.log("Lesson change received:", payload)
           if (payload.eventType === "INSERT" && payload.new.status === "active") {
             // Only care if it matches OUR joined code (for student) or OUR ID (for teacher)
             const isOurLesson = currentUser?.role === "teacher"
@@ -317,7 +319,9 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
           }
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log("Lesson subscription status:", status)
+      })
 
     // Subscribe to requests
     const requestSub = supabase
@@ -326,6 +330,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
         "postgres_changes",
         { event: "*", schema: "public", table: "help_requests" },
         async (payload) => {
+          console.log("Request change received:", payload)
           if (payload.eventType === "INSERT") {
             // Need to fetch profile name
             const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", payload.new.student_id).single()
@@ -347,6 +352,17 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
           } else if (payload.eventType === "UPDATE") {
             setLesson((prev) => {
               if (!prev || prev.id !== payload.new.lesson_id) return prev
+
+              // If status changed to completed, we should check if we need to set cooldown locally?
+              // The completeRequest function handles it for the initiator, but what if another teacher completed it? 
+              // Or if we are the student?
+              // Logic for cooldown is: "When my request is completed"
+              if (payload.new.status === "completed" && payload.new.student_id === currentUser?.id) {
+                // We could set cooldown here, but let's rely on the explicit flow or polling to keep it simple,
+                // or just set it:
+                setCooldownRemaining(prev => prev > 0 ? prev : 60)
+              }
+
               return {
                 ...prev,
                 requests: prev.requests.map(r => r.id === payload.new.id ? {
@@ -356,14 +372,33 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
                 } : r)
               }
             })
+          } else if (payload.eventType === "DELETE") {
+            setLesson((prev) => {
+              if (!prev) return prev
+              return {
+                ...prev,
+                requests: prev.requests.filter(r => r.id !== payload.old.id)
+              }
+            })
           }
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log("Request subscription status:", status)
+      })
+
+    // Polling fallback every 5 seconds
+    const intervalId = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        const joinedCode = typeof window !== 'undefined' ? localStorage.getItem('joinedLessonCode') : null
+        fetchActiveLesson(joinedCode || undefined)
+      }
+    }, 5000)
 
     return () => {
       supabase.removeChannel(lessonSub)
       supabase.removeChannel(requestSub)
+      clearInterval(intervalId)
     }
 
   }, [supabase, currentUser])
@@ -386,6 +421,9 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
 
     if (!currentUser) return
 
+    // Clear any previous lesson state first to avoid confusion
+    setLesson(null)
+
     // Generate random 6 character code
     const code = Math.random().toString(36).substring(2, 8).toUpperCase()
 
@@ -400,13 +438,16 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error
 
       if (data) {
-        setLesson({
+        // Optimistically set the lesson immediately
+        const newLesson = {
           id: data.id,
           active: true,
           code: data.code,
           startedAt: new Date(data.started_at).getTime(),
           requests: []
-        })
+        }
+        setLesson(newLesson)
+        console.log("Lesson started:", newLesson)
       }
     } catch (e) {
       console.error("Error starting lesson:", e)
@@ -502,7 +543,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
         if (!prev) return null
         return { ...prev, requests: [...prev.requests, newRequest] }
       })
-      setCooldownRemaining(60) // COOLDOWN_SECONDS hardcoded for now
+      // Don't start cooldown here - wait until request is completed
       return
     }
 
@@ -518,7 +559,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
         student_id: currentUser.id,
         status: "waiting"
       })
-      setCooldownRemaining(60)
+      // Cooldown starts when teacher marks as complete, not when requesting
     } catch (e) {
       console.error("Error requesting help:", e)
     }
@@ -529,6 +570,11 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
       // Fallback
       setLesson((prev) => {
         if (!prev) return null
+        const request = prev.requests.find(r => r.id === requestId)
+        // Start cooldown for this student
+        if (request && request.studentId === currentUser?.id) {
+          setCooldownRemaining(60)
+        }
         return {
           ...prev,
           requests: prev.requests.map((r) =>
@@ -540,12 +586,44 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
+      // First get the request to check student ID
+      const { data: request } = await supabase.from("help_requests").select("student_id").eq("id", requestId).single()
+
       await supabase.from("help_requests").update({
         status: "completed",
         completed_at: new Date().toISOString()
       }).eq("id", requestId)
+
+      // Start cooldown for this student if they're the current user
+      if (request && request.student_id === currentUser?.id) {
+        setCooldownRemaining(60)
+      }
     } catch (e) {
       console.error("Error completing request:", e)
+    }
+  }, [supabase, currentUser])
+
+  const cancelRequest = useCallback(async (requestId: string) => {
+    if (!supabase) {
+      // Fallback
+      setLesson((prev) => {
+        if (!prev) return null
+        return {
+          ...prev,
+          requests: prev.requests.filter((r) => r.id !== requestId),
+        }
+      })
+      // Cancel cooldown if active
+      setCooldownRemaining(0)
+      return
+    }
+
+    try {
+      await supabase.from("help_requests").delete().eq("id", requestId)
+      // Cancel cooldown if the student had one running
+      setCooldownRemaining(0)
+    } catch (e) {
+      console.error("Error canceling request:", e)
     }
   }, [supabase])
 
@@ -653,6 +731,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
         joinLesson,
         requestHelp,
         completeRequest,
+        cancelRequest,
         getQueuePosition,
         getStudentRequestCount,
         cooldownRemaining,
