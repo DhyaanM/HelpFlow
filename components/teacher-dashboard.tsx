@@ -13,6 +13,7 @@ import {
   BarChart3,
   Hand,
   Zap,
+  BookOpen,
 } from "lucide-react"
 
 const spring = { type: "spring" as const, stiffness: 300, damping: 24 }
@@ -156,7 +157,7 @@ export function TeacherDashboard() {
           {/* Brand (Left) */}
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#2D9389] to-[#115D7F] flex items-center justify-center shadow-sm">
-              <span className="text-white font-bold text-xs">HF</span>
+              <BookOpen className="w-4 h-4 text-white" />
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-2">

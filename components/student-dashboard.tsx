@@ -10,6 +10,7 @@ import {
   Users,
   MessageCircle,
   CheckCircle2,
+  BookOpen,
 } from "lucide-react"
 import { CooldownTimer } from "./cooldown-timer"
 
@@ -72,7 +73,7 @@ export function StudentDashboard() {
           {/* Brand (Left) */}
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#2D9389] to-[#115D7F] flex items-center justify-center shadow-sm">
-              <span className="text-white font-bold text-xs">HF</span>
+              <BookOpen className="w-4 h-4 text-white" />
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
