@@ -483,8 +483,15 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
         console.log("Request subscription status:", status)
       })
 
-    // Polling fallback every 5 seconds
+    // Polling fallback every 4 seconds to ensure data freshness
+    const pollInterval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return
+      const savedCode = typeof window !== 'undefined' ? localStorage.getItem('joinedLessonCode') : null
+      fetchActiveLesson(savedCode || undefined)
+    }, 4000)
+
     return () => {
+      clearInterval(pollInterval)
       supabase.removeChannel(lessonSub)
       supabase.removeChannel(requestSub)
     }

@@ -162,9 +162,6 @@ export function TeacherDashboard() {
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-foreground tracking-tight">HelpFlow</span>
-                <span className="bg-amber-500/15 text-amber-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider border border-amber-500/20">
-                  Beta
-                </span>
               </div>
             </div>
           </div>

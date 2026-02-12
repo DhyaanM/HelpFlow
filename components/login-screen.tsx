@@ -160,14 +160,9 @@ export function LoginScreen() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#2D9389] to-[#115D7F] mb-4 shadow-lg shadow-[#2D9389]/20">
             <BookOpen className="w-8 h-8 text-white" />
           </div>
-          <div className="flex items-center justify-center gap-3">
-            <h1 className="text-3xl font-bold text-foreground tracking-tight">
-              HelpFlow
-            </h1>
-            <span className="bg-amber-500/15 text-amber-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border border-amber-500/20">
-              Beta
-            </span>
-          </div>
+          <h1 className="text-3xl font-bold text-foreground tracking-tight">
+            HelpFlow
+          </h1>
           <p className="text-muted-foreground mt-2 text-base leading-relaxed">
             Classroom help, simplified.
           </p>
