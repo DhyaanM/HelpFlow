@@ -254,13 +254,31 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
   }, [supabase])
 
   // Cooldown timer effect
+  const [cooldownEndsAt, setCooldownEndsAt] = useState<number | null>(null)
+
+  // Master Cooldown Timer Effect
   useEffect(() => {
-    if (cooldownRemaining <= 0) return
-    const interval = setInterval(() => {
-      setCooldownRemaining((prev) => Math.max(0, prev - 1))
-    }, 1000)
+    if (!cooldownEndsAt) {
+      if (cooldownRemaining > 0) setCooldownRemaining(0)
+      return
+    }
+
+    const update = () => {
+      const now = Date.now()
+      const diff = Math.ceil((cooldownEndsAt - now) / 1000)
+      const clamped = Math.max(0, diff)
+      // Only update if changed to avoid renders
+      setCooldownRemaining(prev => prev !== clamped ? clamped : prev)
+
+      if (diff <= 0) {
+        setCooldownEndsAt(null)
+      }
+    }
+
+    update() // Immediate update
+    const interval = setInterval(update, 500) // 500ms for better responsiveness
     return () => clearInterval(interval)
-  }, [cooldownRemaining])
+  }, [cooldownEndsAt])
 
   // --- Real-time Subscriptions ---(Active Lesson) ---
   useEffect(() => {
@@ -456,7 +474,8 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
               if (payload.new.status === "completed" && payload.new.student_id === currentUser?.id) {
                 // We could set cooldown here, but let's rely on the explicit flow or polling to keep it simple,
                 // or just set it:
-                setCooldownRemaining(prev => prev > 0 ? prev : 60)
+                // setCooldownRemaining(prev => prev > 0 ? prev : 60)
+                setCooldownEndsAt(Date.now() + 60000)
               }
 
               return {
@@ -679,7 +698,8 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
         const request = prev.requests.find(r => r.id === requestId)
         // Start cooldown for this student
         if (request && request.studentId === currentUser?.id) {
-          setCooldownRemaining(60)
+          // setCooldownRemaining(60)
+          setCooldownEndsAt(Date.now() + 60000)
         }
         return prev // Already updated optimistically
       })
@@ -699,7 +719,8 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
 
       // Start cooldown for this student if they're the current user
       if (request && request.student_id === currentUser?.id) {
-        setCooldownRemaining(60)
+        // setCooldownRemaining(60)
+        setCooldownEndsAt(Date.now() + 60000)
       }
     } catch (e) {
       console.error("Error completing request:", e)
@@ -719,14 +740,18 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
         }
       })
       // Cancel cooldown if active
-      setCooldownRemaining(0)
+      // Cancel cooldown if active
+      setCooldownEndsAt(null)
+      // setCooldownRemaining(0)
       return
     }
 
     try {
       await supabase.from("help_requests").delete().eq("id", requestId)
       // Cancel cooldown if the student had one running
-      setCooldownRemaining(0)
+      // Cancel cooldown if the student had one running
+      setCooldownEndsAt(null)
+      // setCooldownRemaining(0)
     } catch (e) {
       console.error("Error canceling request:", e)
     }
@@ -834,31 +859,16 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
           // We are in cooldown
           const remaining = Math.ceil((60000 - elapsed) / 1000)
           if (remaining > cooldownRemaining) {
-            setCooldownRemaining(remaining)
+            // setCooldownRemaining(remaining)
+            setCooldownEndsAt(lastCompleted.completedAt + 60000)
           }
         }
       }
     }
   }, [lesson, currentUser]) // Remove cooldownRemaining from dependency to avoid loop
 
-  // Cooldown timer (same as before)
-  const cooldownTimer = useRef<ReturnType<typeof setInterval> | null>(null)
-  useEffect(() => {
-    if (cooldownRemaining > 0) {
-      cooldownTimer.current = setInterval(() => {
-        setCooldownRemaining((prev) => {
-          if (prev <= 1) {
-            if (cooldownTimer.current) clearInterval(cooldownTimer.current)
-            return 0
-          }
-          return prev - 1
-        })
-      }, 1000)
-    }
-    return () => {
-      if (cooldownTimer.current) clearInterval(cooldownTimer.current)
-    }
-  }, [cooldownRemaining])
+  // Duplicate cooldown timer removed
+  // const cooldownTimer = useRef...
 
 
   return (
