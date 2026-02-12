@@ -1,19 +1,8 @@
-import React from "react"
-import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { AnimatedFooter } from "@/components/animated-footer"
 
-import './globals.css'
+// ... imports ...
 
-const _inter = Inter({ subsets: ['latin'] })
-
-export const metadata: Metadata = {
-  title: 'HelpFlow - Classroom Help Queue',
-  description: 'A modern classroom help queue management application for teachers and students.',
-}
-
-export const viewport: Viewport = {
-  themeColor: '#2D9389',
-}
+// ... metadata ...
 
 export default function RootLayout({
   children,
@@ -22,13 +11,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="font-sans antialiased min-h-screen flex flex-col" suppressHydrationWarning>
-        <main className="flex-1">
+      <body className="font-sans antialiased min-h-screen flex flex-col bg-background" suppressHydrationWarning>
+        <main className="flex-1 relative">
           {children}
         </main>
-        <footer className="py-1 text-center text-[10px] text-muted-foreground/40 font-medium tracking-wide">
-          MADE BY DHYAAN MANGANAHALLI
-        </footer>
+        <AnimatedFooter />
       </body>
     </html>
   )
