@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { Subscription } from "@supabase/supabase-js"
+import { Subscription, SupabaseClient } from "@supabase/supabase-js"
 
 // --- Types ---
 export type Role = "teacher" | "student"
@@ -82,6 +82,7 @@ interface HelpFlowContextType {
   everConnectedIds: Set<string>
   pastReports: LessonReport[]
   isLoading: boolean
+  supabase: SupabaseClient | null
 }
 
 const HelpFlowContext = createContext<HelpFlowContextType | null>(null)
@@ -483,20 +484,11 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
       })
 
     // Polling fallback every 5 seconds
-    const intervalId = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        const joinedCode = typeof window !== 'undefined' ? localStorage.getItem('joinedLessonCode') : null
-        fetchActiveLesson(joinedCode || undefined)
-      }
-    }, 5000)
-
     return () => {
       supabase.removeChannel(lessonSub)
       supabase.removeChannel(requestSub)
-      clearInterval(intervalId)
     }
-
-  }, [supabase, currentUser])
+  }, [supabase, currentUser, lessonRef, setLesson, setCooldownRemaining])
 
 
   // --- Actions ---
@@ -886,11 +878,11 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
         studentRoster,
         everConnectedIds,
         pastReports,
-        isLoading
+        isLoading,
+        supabase
       }}
     >
       {children}
     </HelpFlowContext.Provider>
   )
 }
-

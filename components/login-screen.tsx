@@ -3,13 +3,17 @@
 import { useState, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { createClient } from "@/lib/supabase/client"
-import { type Role } from "@/lib/helpflow-context"
+import { type Role, useHelpFlow } from "@/lib/helpflow-context"
 import { GraduationCap, BookOpen, ArrowRight, Mail, Lock, Loader2, AlertCircle } from "lucide-react"
 
 const spring = { type: "spring" as const, stiffness: 300, damping: 24 }
 
 export function LoginScreen() {
-  const supabase = createClient()
+  // Use shared supabase instance if available, else fallback (e.g. if provider fails, though unwrapped)
+  // Actually handleAuth checks for it.
+  const { supabase: contextSupabase } = useHelpFlow()
+  // Fallback to local if context is null (shouldn't happen inside provider)
+  const supabase = contextSupabase || createClient()
   const [mode, setMode] = useState<"login" | "signup">("login")
   const [role, setRole] = useState<Role | null>(null)
   const [name, setName] = useState("")
