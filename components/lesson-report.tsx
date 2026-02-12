@@ -257,7 +257,7 @@ export function LessonReport() {
           <div className="text-right">
             <p className="text-sm text-muted-foreground">Class Size</p>
             <p className="text-lg font-bold text-card-foreground">
-              {everConnectedIds.size > 0 ? everConnectedIds.size : studentRoster.length} students
+              {lessonReport.totalConnectedStudents ?? (everConnectedIds.size > 0 ? everConnectedIds.size : studentRoster.length)} students
             </p>
           </div>
         </motion.div>

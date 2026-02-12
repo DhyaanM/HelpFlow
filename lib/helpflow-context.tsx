@@ -55,6 +55,7 @@ export interface LessonReport {
   studentsNotEngaged: string[]
   averageWaitTime: number
   requestsByStudent: Record<string, number>
+  totalConnectedStudents?: number
 }
 
 // --- Context ---
@@ -238,6 +239,8 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } else if (event === "SIGNED_OUT") {
+        // This block is now handled by the handleLogout function, which can be called from UI
+        // For the auth listener, we just need to clear state
         setCurrentUser(null)
         setScreen("login")
         setLesson(null)
@@ -792,6 +795,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
       studentsNotEngaged,
       averageWaitTime: avgWait,
       requestsByStudent,
+      totalConnectedStudents: rosterToUse.length,
     }
 
     setPastReports((prev) => {
