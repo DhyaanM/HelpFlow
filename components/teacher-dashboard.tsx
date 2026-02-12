@@ -106,12 +106,32 @@ export function TeacherDashboard() {
     completedRequests,
     getStudentRequestCount,
     studentRoster,
+    everConnectedIds,
   } = useHelpFlow()
 
   const studentsEngaged = new Set(
     [...activeQueue, ...completedRequests].map((r) => r.studentId)
   ).size
-  const studentsNotEngaged = studentRoster.length - studentsEngaged
+
+  // Use connected students (or at least 1 if testing alone)
+  const connectedCount = everConnectedIds.size > 0 ? everConnectedIds.size : studentRoster.length
+  // Better: intersection
+  const connectedRoster = studentRoster.filter(s => everConnectedIds.has(s.id))
+  // If everConnectedIds is populated, use it. Else fallback (though everConnectedIds updates on sync)
+  const totalStudents = connectedRoster.length > 0 ? connectedRoster.length : (everConnectedIds.size > 0 ? everConnectedIds.size : 0)
+
+  // "Not Engaged" = Total Connected - Engaged
+  // (Assuming all engaged are connected. If they left, they shouldn't count as "Not Engaged", but "Engaged" count stays.
+  // We want "Connected students who have NOT requested help").
+  const activeStudentIds = new Set(connectedRoster.map(s => s.id))
+  // Engaged IDs (who asked)
+  const engagedIds = new Set([...activeQueue, ...completedRequests].map(r => r.studentId))
+
+  // Connected Students who are NOT in Engaged IDs
+  const notEngagedCount = connectedRoster.filter(s => !engagedIds.has(s.id)).length
+
+  // Fallback for display if roster empty
+  const studentsNotEngaged = totalStudents > 0 ? notEngagedCount : 0
 
   function handleLogout() {
     setCurrentUser(null)

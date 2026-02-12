@@ -78,6 +78,7 @@ interface HelpFlowContextType {
   lessonReport: LessonReport | null
   generateReport: () => LessonReport | null
   studentRoster: User[] // Kept for compatibility, though less relevant with real auth
+  everConnectedIds: Set<string>
   pastReports: LessonReport[]
   isLoading: boolean
 }
@@ -248,7 +249,16 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
     }
   }, [supabase])
 
-  // --- Real-time Subscriptions (Active Lesson) ---
+  // Cooldown timer effect
+  useEffect(() => {
+    if (cooldownRemaining <= 0) return
+    const interval = setInterval(() => {
+      setCooldownRemaining((prev) => Math.max(0, prev - 1))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [cooldownRemaining])
+
+  // --- Real-time Subscriptions ---(Active Lesson) ---
   useEffect(() => {
     if (!supabase) return
 
@@ -870,6 +880,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
         lessonReport,
         generateReport,
         studentRoster,
+        everConnectedIds,
         pastReports,
         isLoading
       }}

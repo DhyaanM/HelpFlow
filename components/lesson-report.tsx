@@ -29,27 +29,14 @@ const spring = { type: "spring", stiffness: 300, damping: 24 } as const
 const CHART_COLORS = ["#2D9389", "#115D7F", "#AD4225", "#F9B940", "#3AAFA9"]
 
 export function LessonReport() {
-  const { lessonReport, setScreen, startLesson, studentRoster } = useHelpFlow()
+  const { lessonReport, setScreen, startLesson, studentRoster, everConnectedIds } = useHelpFlow()
 
   if (!lessonReport) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={spring}
-          className="text-center"
-        >
-          <p className="text-muted-foreground mb-4">No report available.</p>
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setScreen("teacher")}
-            className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#2D9389] to-[#115D7F] text-white font-semibold"
-          >
-            Go Back
-          </motion.button>
-        </motion.div>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
+        <div className="w-16 h-16 rounded-full border-4 border-[#2D9389]/20 border-t-[#2D9389] animate-spin mb-4" />
+        <h2 className="text-xl font-bold text-foreground">Preparing Report...</h2>
+        <p className="text-muted-foreground mt-2">Gathering lesson data</p>
       </div>
     )
   }
@@ -270,7 +257,7 @@ export function LessonReport() {
           <div className="text-right">
             <p className="text-sm text-muted-foreground">Class Size</p>
             <p className="text-lg font-bold text-card-foreground">
-              {studentRoster.length} students
+              {everConnectedIds.size > 0 ? everConnectedIds.size : studentRoster.length} students
             </p>
           </div>
         </motion.div>
