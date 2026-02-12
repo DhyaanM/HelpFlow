@@ -298,7 +298,8 @@ export function LessonReport() {
                     vertical={false}
                   />
                   <XAxis
-                    dataKey="name"
+                    dataKey="fullName"
+                    tickFormatter={(val) => val.split(" ")[0]}
                     tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
                     axisLine={false}
                     tickLine={false}
@@ -310,6 +311,7 @@ export function LessonReport() {
                     tickLine={false}
                   />
                   <Tooltip
+                    cursor={{ fill: 'hsl(var(--muted)/0.4)' }}
                     contentStyle={{
                       backgroundColor: "hsl(var(--card))",
                       border: "1px solid hsl(var(--border))",
@@ -318,10 +320,6 @@ export function LessonReport() {
                     }}
                     labelStyle={{ color: "hsl(var(--card-foreground))" }}
                     formatter={(value: number) => [`${value} requests`, "Requests"]}
-                    labelFormatter={(label: string) => {
-                      const item = chartData.find((d) => d.name === label)
-                      return item?.fullName || label
-                    }}
                   />
                   <Bar dataKey="requests" radius={[8, 8, 0, 0]}>
                     {chartData.map((_entry, index) => (

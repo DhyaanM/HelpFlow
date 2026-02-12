@@ -99,6 +99,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
   const [pastReports, setPastReports] = useState<LessonReport[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [studentRoster, setStudentRoster] = useState<User[]>([])
+  const [everConnectedIds, setEverConnectedIds] = useState<Set<string>>(new Set())
 
   // Fix stale closure in polling
   const lessonRef = useRef(lesson)
@@ -368,8 +369,40 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
           }
         }
       )
-      .subscribe((status) => {
+      .on(
+        "presence",
+        { event: "sync" },
+        () => {
+          const state = lessonSub.presenceState()
+          const presentIds = new Set<string>()
+
+          Object.values(state).forEach((presences: any) => {
+            presences.forEach((p: any) => {
+              if (p.user_id) presentIds.add(p.user_id)
+            })
+          })
+
+          setEverConnectedIds(prev => {
+            const next = new Set(prev)
+            let changed = false
+            presentIds.forEach(id => {
+              if (!next.has(id)) {
+                next.add(id)
+                changed = true
+              }
+            })
+            return changed ? next : prev
+          })
+        }
+      )
+      .subscribe(async (status) => {
         console.log("Lesson subscription status:", status)
+        if (status === "SUBSCRIBED" && currentUser) {
+          await lessonSub.track({
+            user_id: currentUser.id,
+            online_at: new Date().toISOString()
+          })
+        }
       })
 
     // Subscribe to requests
@@ -472,6 +505,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
 
     // Clear any previous lesson state first to avoid confusion
     setLesson(null)
+    setEverConnectedIds(new Set())
 
     // Generate random 6 character code
     const code = Math.random().toString(36).substring(2, 8).toUpperCase()
@@ -710,7 +744,19 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
     // For now, "studentsNotEngaged" might be empty or we only count active participants.
     const studentsWhoAsked = new Set(lesson.requests.map((r) => r.studentId))
     const allStudentNames = studentRoster.map(s => s.name)
-    const studentsNotEngaged = allStudentNames.filter(name => !lesson.requests.some(r => r.studentName === name))
+    // Filter by everConnectedIds if available (and if not empty)
+    // If empty (e.g. strict reload with no presence yet), maybe fall back to all? No, stick to connected.
+    const connectedRoster = studentRoster.filter(s => everConnectedIds.has(s.id))
+
+    // Fallback: If everConnectedIds is empty (e.g. feature just enabled or reload), 
+    // maybe we should use allRoster? Or maybe just those who asked?
+    // User requested: "only measure students who are connected". 
+    // So if 0 connected, 0 not engaged.
+    const rosterToUse = connectedRoster.length > 0 ? connectedRoster : []
+
+    const studentsNotEngaged = rosterToUse
+      .filter(s => !studentsWhoAsked.has(s.id))
+      .map(s => s.name)
     const studentsHelped = [...studentsWhoAsked].map(
       (id) => lesson.requests.find(r => r.studentId === id)?.studentName || "Unknown"
     )
@@ -744,7 +790,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
     })
 
     return report
-  }, [lesson])
+  }, [lesson, studentRoster, everConnectedIds])
 
   const [lessonReport, setLessonReport] = useState<LessonReport | null>(null)
 

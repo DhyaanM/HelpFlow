@@ -118,8 +118,8 @@ export function TeacherDashboard() {
     setScreen("login")
   }
 
-  function handleEndLesson() {
-    endLesson()
+  async function handleEndLesson() {
+    await endLesson()
     setScreen("report")
   }
 
