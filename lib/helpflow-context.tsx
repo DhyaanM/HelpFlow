@@ -100,6 +100,12 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [studentRoster, setStudentRoster] = useState<User[]>([])
 
+  // Fix stale closure in polling
+  const lessonRef = useRef(lesson)
+  useEffect(() => {
+    lessonRef.current = lesson
+  }, [lesson])
+
   // Derived state
   const activeQueue = lesson?.requests.filter((r) => r.status === "waiting") ?? []
   const completedRequests = lesson?.requests.filter((r) => r.status === "completed") ?? []
@@ -266,36 +272,10 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
         query = query.eq("code", lessonCode.toUpperCase())
       } else {
         // Student hasn't joined a lesson yet
-        // BUT if we have a current lesson that was active, maybe it just ended?
-        // Let's not aggressively set to null if we rely on it for the report
-        // unless we strictly know it's gone.
-        // For polling simplicity: if we find nothing active, we set to null.
-        // To fix the "Report Unavailable" bug:
-        // If we currently have a lesson and the fetch returns nothing, 
-        // we should check if that specific lesson exists but is 'completed'.
-        if (lesson && !lesson.active) {
-          // We already have a completed lesson (report view), don't wipe it
-          return
-        }
-
-        // If we have an active lesson in state, and query returns nothing, 
-        // it implies it ended or was deleted.
-        if (lesson && lesson.active) {
-          const { data: specificLesson } = await supabase
-            .from("lessons")
-            .select("status, ended_at")
-            .eq("id", lesson.id)
-            .single()
-
-          if (specificLesson && specificLesson.status === "completed") {
-            setLesson(prev => prev ? { ...prev, active: false, endedAt: new Date(specificLesson.ended_at).getTime() } : null)
-            return
-          }
-        }
-
         setLesson(null)
         setIsLoading(false)
         return
+
       }
 
       const { data: lessonData, error } = await query.maybeSingle()
@@ -328,7 +308,31 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
           requests: formattedRequests
         })
       } else {
-        setLesson(null)
+        // If we have ANY lesson in state (active or not), and query returns nothing, 
+        // it applies it ended or was deleted.
+        const currentRef = lessonRef.current
+        if (currentRef) {
+          if (!supabase) return
+
+          const { data: specificLesson } = await supabase
+            .from("lessons")
+            .select("status, ended_at")
+            .eq("id", currentRef.id)
+            .maybeSingle()
+
+          if (specificLesson && specificLesson.status === "completed") {
+            const endedAt = specificLesson.ended_at
+            // Only update if it was mistakenly considered active or if we just want to ensure it's marked inactive
+            if (currentRef.active) {
+              setLesson(prev => prev ? { ...prev, active: false, endedAt: new Date(endedAt).getTime() } : null)
+            }
+            // Keep the lesson in state (inactive)
+          } else {
+            setLesson(null)
+          }
+        } else {
+          setLesson(null)
+        }
       }
     }
 
@@ -753,6 +757,30 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
       setLessonReport(null)
     }
   }, [lesson, generateReport])
+
+  // Cooldown logic: Check if we have a recent completed request
+  useEffect(() => {
+    if (!lesson || !currentUser) return
+
+    // Find the most recent completed request for this user
+    const myCompletedRequests = lesson.requests
+      .filter(r => r.studentId === currentUser.id && r.status === "completed" && r.completedAt)
+      .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0)) // Newest first
+
+    if (myCompletedRequests.length > 0) {
+      const lastCompleted = myCompletedRequests[0]
+      if (lastCompleted.completedAt) {
+        const elapsed = Date.now() - lastCompleted.completedAt
+        if (elapsed < 60000) {
+          // We are in cooldown
+          const remaining = Math.ceil((60000 - elapsed) / 1000)
+          if (remaining > cooldownRemaining) {
+            setCooldownRemaining(remaining)
+          }
+        }
+      }
+    }
+  }, [lesson, currentUser]) // Remove cooldownRemaining from dependency to avoid loop
 
   // Cooldown timer (same as before)
   const cooldownTimer = useRef<ReturnType<typeof setInterval> | null>(null)
