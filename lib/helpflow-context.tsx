@@ -98,6 +98,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
   const [cooldownRemaining, setCooldownRemaining] = useState(0)
   const [pastReports, setPastReports] = useState<LessonReport[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [studentRoster, setStudentRoster] = useState<User[]>([])
 
   // Derived state
   const activeQueue = lesson?.requests.filter((r) => r.status === "waiting") ?? []
@@ -130,6 +131,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
               avatar: profile.avatar_url,
             })
             setScreen(profile.role === "teacher" ? "teacher" : "student")
+            if (profile.role === 'teacher') fetchRoster()
           } else {
             // No profile found, let's create a default one to unblock the user
             console.log("No profile found for logged-in user, creating default...")
@@ -168,6 +170,21 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
 
     checkUser()
 
+    // Fetch class roster if teacher
+    const fetchRoster = async () => {
+      const { data } = await supabase.from("profiles").select("*").eq("role", "student")
+      if (data) {
+        setStudentRoster(data.map(p => ({
+          id: p.id,
+          name: p.full_name,
+          role: "student",
+          email: p.email,
+          avatar: p.avatar_url
+        })))
+      }
+    }
+
+
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session?.user) {
         // Re-fetch profile on sign-in
@@ -186,6 +203,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
             avatar: profile.avatar_url,
           })
           setScreen(profile.role === "teacher" ? "teacher" : "student")
+          if (profile.role === 'teacher') fetchRoster()
         } else {
           // Sign in event but no profile - create one
           const defaultName = session.user.email?.split("@")[0] || "User"
@@ -248,6 +266,33 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
         query = query.eq("code", lessonCode.toUpperCase())
       } else {
         // Student hasn't joined a lesson yet
+        // BUT if we have a current lesson that was active, maybe it just ended?
+        // Let's not aggressively set to null if we rely on it for the report
+        // unless we strictly know it's gone.
+        // For polling simplicity: if we find nothing active, we set to null.
+        // To fix the "Report Unavailable" bug:
+        // If we currently have a lesson and the fetch returns nothing, 
+        // we should check if that specific lesson exists but is 'completed'.
+        if (lesson && !lesson.active) {
+          // We already have a completed lesson (report view), don't wipe it
+          return
+        }
+
+        // If we have an active lesson in state, and query returns nothing, 
+        // it implies it ended or was deleted.
+        if (lesson && lesson.active) {
+          const { data: specificLesson } = await supabase
+            .from("lessons")
+            .select("status, ended_at")
+            .eq("id", lesson.id)
+            .single()
+
+          if (specificLesson && specificLesson.status === "completed") {
+            setLesson(prev => prev ? { ...prev, active: false, endedAt: new Date(specificLesson.ended_at).getTime() } : null)
+            return
+          }
+        }
+
         setLesson(null)
         setIsLoading(false)
         return
@@ -566,6 +611,17 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
   }, [supabase, currentUser, lesson, cooldownRemaining])
 
   const completeRequest = useCallback(async (requestId: string) => {
+    // Optimistic Update
+    setLesson((prev) => {
+      if (!prev) return null
+      return {
+        ...prev,
+        requests: prev.requests.map((r) =>
+          r.id === requestId ? { ...r, status: "completed" as const, completedAt: Date.now() } : r
+        ),
+      }
+    })
+
     if (!supabase) {
       // Fallback
       setLesson((prev) => {
@@ -575,24 +631,21 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
         if (request && request.studentId === currentUser?.id) {
           setCooldownRemaining(60)
         }
-        return {
-          ...prev,
-          requests: prev.requests.map((r) =>
-            r.id === requestId ? { ...r, status: "completed" as const, completedAt: Date.now() } : r
-          ),
-        }
+        return prev // Already updated optimistically
       })
       return
     }
 
     try {
       // First get the request to check student ID
-      const { data: request } = await supabase.from("help_requests").select("student_id").eq("id", requestId).single()
+      const { data: request } = await supabase.from("help_requests").select("student_id").eq("id", requestId).maybeSingle()
 
-      await supabase.from("help_requests").update({
+      const { error } = await supabase.from("help_requests").update({
         status: "completed",
         completed_at: new Date().toISOString()
       }).eq("id", requestId)
+
+      if (error) throw error
 
       // Start cooldown for this student if they're the current user
       if (request && request.student_id === currentUser?.id) {
@@ -600,6 +653,8 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (e) {
       console.error("Error completing request:", e)
+      // Revert optimistic update if needed? For now, we rely on re-sync or polling to fix it.
+      // But typically we should revert.
     }
   }, [supabase, currentUser])
 
@@ -650,7 +705,8 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
     // Simplification: We don't have a full roster from DB easily available in this context without fetching all profiles.
     // For now, "studentsNotEngaged" might be empty or we only count active participants.
     const studentsWhoAsked = new Set(lesson.requests.map((r) => r.studentId))
-    const studentsNotEngaged: string[] = [] // TODO: Fetch class roster to calc this real
+    const allStudentNames = studentRoster.map(s => s.name)
+    const studentsNotEngaged = allStudentNames.filter(name => !lesson.requests.some(r => r.studentName === name))
     const studentsHelped = [...studentsWhoAsked].map(
       (id) => lesson.requests.find(r => r.studentId === id)?.studentName || "Unknown"
     )
@@ -739,7 +795,7 @@ export function HelpFlowProvider({ children }: { children: React.ReactNode }) {
         completedRequests,
         lessonReport,
         generateReport,
-        studentRoster: [], // Deprecated in favor of DB
+        studentRoster,
         pastReports,
         isLoading
       }}

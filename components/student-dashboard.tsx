@@ -216,9 +216,9 @@ export function StudentDashboard() {
                             const myReq = activeQueue.find(r => r.studentId === currentUser?.id)
                             if (myReq) cancelRequest(myReq.id)
                           }}
-                          className="text-xs text-muted-foreground hover:text-red-500 transition-colors underline decoration-dotted underline-offset-4"
+                          className="w-full py-3 rounded-xl border border-dashed border-muted-foreground/30 text-muted-foreground hover:text-red-500 hover:border-red-500/50 hover:bg-red-500/5 transition-all text-sm font-medium"
                         >
-                          Cancel my request
+                          Cancel Request
                         </button>
                       </div>
                     </motion.div>
